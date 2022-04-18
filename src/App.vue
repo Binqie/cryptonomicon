@@ -12,6 +12,7 @@
               <input
                 v-model="ticker"
                 @keydown.enter="add"
+                @change="matchCoin"
                 type="text"
                 name="wallet"
                 id="wallet"
@@ -41,6 +42,9 @@
           </svg>
           Добавить
         </button>
+        <div v-if="matchedCoins.length">
+          <div class="border border-transparent shadow-sm rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500" v-for="coin in matchedCoins" :key="coin.id">{{coin.name}}</div>
+        </div>
       </section>
 
       <template v-if="tickers.length">
@@ -134,6 +138,8 @@ export default {
   name: 'App',
   data() {
     return {
+      coinList: {},
+      matchedCoins: [],
       ticker: '',
       tickers: [],
       sel: null,
@@ -167,9 +173,26 @@ export default {
     select(ticker) {
       this.sel = ticker;
       this.graph = [];
+    },
+    matchCoin() {
+      this.matchedCoins = [];
+
+      for (let coin in this.coinList) {
+        if (this.matchedCoins.length > 3) break;
+        
+        if (this.ticker.length >= 2 && coin.CoinInfo.Name.indexOf(this.ticker.toUpperCase()) > -1) {
+          console.log(coin.CoinInfo.Name)
+          this.matchedCoins.push(coin.CoinInfo.Name);
+        }
+      }
     }
+  },
+  created() {
+    fetch('https://min-api.cryptocompare.com/data/top/totalvolfull?limit=50&tsym=USD')
+      .then(response => response.json())
+      .then(response => {
+        console.log(response.Data)
+        this.coinList = response.Data});
   }
 }
 </script>
-
-<style src="./app.css"></style>
