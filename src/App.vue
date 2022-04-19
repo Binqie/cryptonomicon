@@ -22,6 +22,21 @@
             </div>
           </div>
         </div>
+        <div 
+          style="display: flex"
+          v-if="matchedCoins.length">
+            <div 
+              class="p-1 mt-2 border border-transparent shadow-sm rounded-full text-white bg-gray-400 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 cursor-pointer" 
+              v-for="coin in matchedCoins" 
+              :key="coin.CoinInfo.Id"
+              @click="addMatchedTicker(coin)"
+              >
+                {{coin.CoinInfo.Name}}
+              </div>
+        </div>
+        <div v-else-if="!matchedCoins.length && ticker.length > 1">
+          <p class="mt-2 text-red-600">Нет совпадений, попробуйте ещё раз...</p>
+        </div>
         <button
           @click="add"
           type="button"
@@ -42,17 +57,6 @@
           </svg>
           Добавить
         </button>
-        <div 
-          style="display: flex"
-          v-if="matchedCoins.length">
-            <div 
-              class="p-1 border border-transparent shadow-sm rounded-full text-white bg-gray-400 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 cursor-pointer" 
-              v-for="coin in matchedCoins" 
-              :key="coin"
-              >
-                {{coin.toUpperCase()}}
-              </div>
-        </div>
       </section>
 
       <template v-if="tickers.length">
@@ -147,7 +151,7 @@ export default {
   data() {
     return {
       coinList: {},
-      matchedCoins: ["btc", 'eth'],
+      matchedCoins: [],
       ticker: '',
       tickers: [],
       sel: null,
@@ -155,9 +159,15 @@ export default {
     }
   }, 
   methods: {
-    add() {
+    add(coin) {
+      if (this.checkForMatches(coin)) return;
+
       const currentTicker = {name: this.ticker, price: 0};
+      if (coin) {
+        currentTicker = {name: coin.CoinInfo.Name, price: 0};
+      }     
       this.tickers.push(currentTicker);
+
       setInterval(async () => {
         const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
         const data = await f.json();
@@ -169,6 +179,31 @@ export default {
         }
       }, 3000)
       this.ticker = '';
+    },
+    addMatchedTicker(coin) {
+      if (this.checkForMatches(coin)) return false;
+
+      this.tickers.push({name: coin.CoinInfo.Name, price: 0});
+
+      setInterval(async () => {
+        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${coin.CoinInfo.Name}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
+        const data = await f.json();
+        
+        this.tickers.find(t => t.name === coin.CoinInfo.Name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+      
+        if (this.sel?.name === coin.CoinInfo.Name) {
+          this.graph.push(data.USD);
+        }
+      }, 3000)
+
+      this.ticker = '';
+      this.matchedCoins = [];
+    },
+    checkForMatches(coin) {
+      for (let t of this.tickers) {
+        if (t.name === coin.CoinInfo.Name) return true;
+      }
+      return false;
     },
     handleDelete(t) {
       this.tickers = this.tickers.filter(ticker => ticker !== t);
@@ -186,13 +221,19 @@ export default {
       this.matchedCoins = [];
 
       for (let coin of this.coinList) {
-        if (this.matchedCoins.length > 3) break;
+        if (this.matchedCoins.length >= 4) break;
         
         if (this.ticker.length >= 2 && coin.CoinInfo.Name.toUpperCase().indexOf(this.ticker.toUpperCase()) > -1) {
           console.log(coin.CoinInfo.Name)
-          this.matchedCoins.push(coin.CoinInfo.Name);
+          console.log(coin)
+          this.matchedCoins.push(coin);
         }
       }
+    },
+    selectCoin(coin) {
+      console.log(coin)
+      this.ticker = coin;
+      this.matchedCoins = [];
     }
   },
   created() {
