@@ -11,7 +11,7 @@
             <div class="mt-1 relative rounded-md shadow-md">
               <input
                 v-model="ticker"
-                @keydown.enter="add(ticker)"
+                @keydown.enter="add({name: ticker.toUpperCase()})"
                 @input="matchCoin"
                 type="text"
                 name="wallet"
@@ -29,17 +29,19 @@
               class="p-1 mt-2 border border-transparent shadow-sm rounded-full text-white bg-gray-400 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 cursor-pointer" 
               v-for="coin in matchedCoins" 
               :key="coin.CoinInfo.Id"
-              @click="addMatchedTicker(coin)"
+              @click="add({name: coin.CoinInfo.Name, price: 0})"
               >
                 {{coin.CoinInfo.Name}}
               </div>
         </div>
-        <div v-else-if="checkForMatches({name: ticker.toUpperCase(), price: 0})" class="text-red-600">Такой тикер уже добавлен...</div>
-        <div v-else-if="!matchedCoins.length && ticker.length > 1" class="mt-2 text-red-600">
+        <div v-else-if="checkForMatches({name: ticker.toUpperCase()})" class="text-red-600">
+          Такой тикер уже добавлен...
+        </div>
+        <div v-else-if="!matchedCoins.length && ticker.length >= 2" class="mt-2 text-red-600">
           Нет совпадений, попробуйте ещё раз...
         </div>
         <button
-          @click="add({name: ticker, price: 0})"
+          @click="add({name: ticker.toUpperCase(), price: 0})"
           type="button"
           class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
@@ -160,49 +162,33 @@ export default {
     }
   }, 
   methods: {
-    add() {
-      const currentTicker = {name: this.ticker.toUpperCase(), price: 0};
+    add(coin) {
+      const currentTicker = coin;
 
       if (this.checkForMatches(currentTicker)) return false;
    
+      this.ticker = coin.name;
       this.tickers.push(currentTicker);
 
-      setInterval(async () => {
+      const id = setInterval(async () => {
+        if(!this.tickers.length) clearInterval(id);
+
         const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
         const data = await f.json();
-        console.log(data)
-        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toFixed(2);
       
         if (this.sel?.name === currentTicker.name) {
           this.graph.push(data.USD);
         }
-      }, 3000)
-      this.ticker = '';
-    },
-    addMatchedTicker(coin) {
-      const currentTicker = {name: coin.CoinInfo.Name, price: 0};
-
-      if (this.checkForMatches(currentTicker)) return false;
-
-      this.tickers.push(currentTicker);
-
-      setInterval(async () => {
-        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
-        const data = await f.json();
-        
-        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-      
-        if (this.sel?.name === currentTicker.name) {
-          this.graph.push(data.USD);
-        }
-      }, 3000)
+      }, 3000);
 
       this.ticker = '';
       this.matchedCoins = [];
     },
     checkForMatches(coin) {
       for (let t of this.tickers) {
-        if (t.name == coin.name) return true;
+        this.matchedCoins = [];
+        if (t.name === coin.name) return true;
       }
       return false;
     },
@@ -219,13 +205,13 @@ export default {
       this.graph = [];
     },
     matchCoin() {
-      //НЕ РАбОТАЕТ 
+      //НЕ РАбОТАЕТ
       this.matchedCoins = [];
 
-      for (let coin in this.coinList) {
+      for (let coin of this.coinList) {
         if (this.matchedCoins.length >= 4) break;
         
-        if (this.ticker.length >= 2 && coin.CoinInfo.Name.indexOf(this.ticker.toUpperCase()) > -1) {
+        if (this.ticker.length >= 2 && coin.CoinInfo.Name.indexOf(this.ticker.toUpperCase()) != -1) {
           this.matchedCoins.push(coin);
         }
       }
