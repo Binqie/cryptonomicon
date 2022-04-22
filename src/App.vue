@@ -63,10 +63,18 @@
       </section>
 
       <template v-if="tickers.length">
+        <div class="mt-5">
+          <button v-if="page > 1" @click="page--" class="mx-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Prev</button>
+          <button v-if="hasNextPage" @click="page++" class="mx-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Next</button>
+          <div class="mt-5">
+            Filter:
+            <input v-model="filter" class="h-10 mx-5 pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"/> 
+          </div>
+        </div>
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="t in tickers"
+            v-for="t in filteredTickers()"
             :key="t.name"
             @click="select(t)"
             :class="{
@@ -156,12 +164,27 @@ export default {
       coinList: {},
       matchedCoins: [],
       ticker: '',
+      filter: '',
       tickers: [],
       sel: null,
-      graph: []
+      graph: [],
+      page: 1,
+      hasNextPage: true,
     }
   }, 
   methods: {
+    filteredTickers() {
+      const start = (this.page - 1) * 6;
+      const end = this.page * 6;
+      const filteredTickers = this.tickers.filter(ticker => ticker.name.includes(this.filter.toUpperCase()));
+    
+      this.hasNextPage = filteredTickers.length > end;
+
+      return filteredTickers.slice(start, end);
+    },
+    log() {
+
+    },
     subscribeToUpdates(tickerName) {
       const id = setInterval(async () => {
         if(!this.tickers.length) clearInterval(id);
@@ -180,6 +203,7 @@ export default {
 
       if (this.checkForMatches(currentTicker)) return false;
 
+      this.filter = '';
       let flag = false;
 
       for (let c of this.coinList) {
@@ -200,7 +224,6 @@ export default {
       this.matchedCoins = [];
     },
     checkForMatches(coin) {
-      console.log(this.tickers)
       for (let t of this.tickers) {
         this.matchedCoins = [];
         if (t.name === coin.name) return true;
@@ -237,7 +260,15 @@ export default {
     }
   },
   created() {
-    fetch('https://min-api.cryptocompare.com/data/top/totalvolfull?limit=50&tsym=USD')
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
+    if (windowData.filter) {
+      this.filter = windowData.filter;
+    }
+    if (windowData.page) {
+      this.page = windowData.page;
+    }
+
+    fetch('https://min-api.cryptocompare.com/data/top/totalvolfull?limit=100&tsym=USD')
       .then(response => response.json())
       .then(response => {
         this.coinList = [...response.Data]
@@ -251,6 +282,15 @@ export default {
         this.subscribeToUpdates(ticker.name);
       });
     }
-  }
+  },
+  watch: {
+    filter() {
+      this.page = 1;
+      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
+    },
+    page() {
+      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
+    }
+  } 
 }
 </script>
