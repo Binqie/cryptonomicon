@@ -30,9 +30,9 @@
               v-for="coin in matchedCoins" 
               :key="coin.CoinInfo.Id"
               @click="add({name: coin.CoinInfo.Name, price: 0})"
-              >
-                {{coin.CoinInfo.Name}}
-              </div>
+            >
+              {{coin.CoinInfo.Name}}
+            </div>
         </div>
         <div v-else-if="checkForMatches({name: ticker.toUpperCase()})" class="text-red-600">
           Такой тикер уже добавлен...
@@ -166,6 +166,16 @@ export default {
       const currentTicker = coin;
 
       if (this.checkForMatches(currentTicker)) return false;
+
+      let flag = false;
+
+      for (let c of this.coinList) {
+        if (c.CoinInfo.Name === coin.name) {
+          flag = true;
+        }
+      }
+
+      if (!flag) return false;
    
       this.ticker = coin.name;
       this.tickers.push(currentTicker);
@@ -186,6 +196,7 @@ export default {
       this.matchedCoins = [];
     },
     checkForMatches(coin) {
+      console.log(this.tickers)
       for (let t of this.tickers) {
         this.matchedCoins = [];
         if (t.name === coin.name) return true;
@@ -227,6 +238,7 @@ export default {
       .then(response => response.json())
       .then(response => {
         this.coinList = [...response.Data]
+        console.log(this.coinList)
       });
   }
 }
