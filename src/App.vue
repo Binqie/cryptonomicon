@@ -11,7 +11,7 @@
             <div class="mt-1 relative rounded-md shadow-md">
               <input
                 v-model="ticker"
-                @keydown.enter="add({name: ticker.toUpperCase()})"
+                @keydown.enter="add({name: ticker.toUpperCase(), price: 0})"
                 @input="matchCoin"
                 type="text"
                 name="wallet"
@@ -162,6 +162,19 @@ export default {
     }
   }, 
   methods: {
+    subscribeToUpdates(tickerName) {
+      const id = setInterval(async () => {
+        if(!this.tickers.length) clearInterval(id);
+
+        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
+        const data = await f.json();
+        this.tickers.find(t => t.name === tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toFixed(2);
+      
+        if (this.sel?.name === tickerName) {
+          this.graph.push(data.USD);
+        }
+      }, 3000);
+    },
     add(coin) {
       const currentTicker = coin;
 
@@ -176,21 +189,12 @@ export default {
       }
 
       if (!flag) return false;
-   
+
       this.ticker = coin.name;
       this.tickers.push(currentTicker);
+      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
 
-      const id = setInterval(async () => {
-        if(!this.tickers.length) clearInterval(id);
-
-        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
-        const data = await f.json();
-        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toFixed(2);
-      
-        if (this.sel?.name === currentTicker.name) {
-          this.graph.push(data.USD);
-        }
-      }, 3000);
+      this.subscribeToUpdates(currentTicker.name);
 
       this.ticker = '';
       this.matchedCoins = [];
@@ -228,7 +232,6 @@ export default {
       }
     },
     selectCoin(coin) {
-      console.log(coin)
       this.ticker = coin;
       this.matchedCoins = [];
     }
@@ -238,8 +241,16 @@ export default {
       .then(response => response.json())
       .then(response => {
         this.coinList = [...response.Data]
-        console.log(this.coinList)
       });
+    
+    const tickersData = localStorage.getItem('cryptonomicon-list');
+
+    if (tickersData) {
+      this.tickers = JSON.parse(tickersData);
+      this.tickers.forEach(ticker => {
+        this.subscribeToUpdates(ticker.name);
+      });
+    }
   }
 }
 </script>
