@@ -74,11 +74,11 @@
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="t in filteredTickers()"
+            v-for="t in paginatedTickers"
             :key="t.name"
             @click="select(t)"
             :class="{
-              'border-4': sel === t
+              'border-4': selectedTicker === t
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -115,17 +115,17 @@
       </template>
       <section class="relative">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-          {{sel ? sel.name : 'VUE'}} - USD
+          {{selectedTicker ? selectedTicker.name : 'VUE'}} - USD
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div 
-            v-for="(bar, idx) in normalizeGraph()" 
+            v-for="(bar, idx) in normalizedGraph" 
             class="bg-purple-800 border w-10" 
             :style="{height: `${bar}%`}"
             :key="idx"></div>
         </div>
         <button
-          @click="sel = null"
+          @click="selectedTicker = null"
           type="button"
           class="absolute top-0 right-0"
         >
@@ -161,104 +161,20 @@ export default {
   name: 'App',
   data() {
     return {
-      coinList: {},
-      matchedCoins: [],
       ticker: '',
       filter: '',
+
+      coinList: {},
       tickers: [],
-      sel: null,
+      selectedTicker: null,
+      matchedCoins: [],
+
       graph: [],
+
       page: 1,
-      hasNextPage: true,
-    }
-  }, 
-  methods: {
-    filteredTickers() {
-      const start = (this.page - 1) * 6;
-      const end = this.page * 6;
-      const filteredTickers = this.tickers.filter(ticker => ticker.name.includes(this.filter.toUpperCase()));
-    
-      this.hasNextPage = filteredTickers.length > end;
-
-      return filteredTickers.slice(start, end);
-    },
-    log() {
-
-    },
-    subscribeToUpdates(tickerName) {
-      const id = setInterval(async () => {
-        if(!this.tickers.length) clearInterval(id);
-
-        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
-        const data = await f.json();
-        this.tickers.find(t => t.name === tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toFixed(2);
-      
-        if (this.sel?.name === tickerName) {
-          this.graph.push(data.USD);
-        }
-      }, 3000);
-    },
-    add(coin) {
-      const currentTicker = coin;
-
-      if (this.checkForMatches(currentTicker)) return false;
-
-      this.filter = '';
-      let flag = false;
-
-      for (let c of this.coinList) {
-        if (c.CoinInfo.Name === coin.name) {
-          flag = true;
-        }
-      }
-
-      if (!flag) return false;
-
-      this.ticker = coin.name;
-      this.tickers.push(currentTicker);
-      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
-
-      this.subscribeToUpdates(currentTicker.name);
-
-      this.ticker = '';
-      this.matchedCoins = [];
-    },
-    checkForMatches(coin) {
-      for (let t of this.tickers) {
-        this.matchedCoins = [];
-        if (t.name === coin.name) return true;
-      }
-      return false;
-    },
-    handleDelete(t) {
-      this.tickers = this.tickers.filter(ticker => ticker !== t);
-    },
-    normalizeGraph() {
-      const maxValue = Math.max(...this.graph);
-      const minValue = Math.min(...this.graph);
-      return this.graph.map(price => 5 + ((price - minValue) * 95) / (maxValue - minValue));
-    },
-    select(ticker) {
-      this.sel = ticker;
-      this.graph = [];
-    },
-    matchCoin() {
-      //НЕ РАбОТАЕТ
-      this.matchedCoins = [];
-
-      for (let coin of this.coinList) {
-        if (this.matchedCoins.length >= 4) break;
-        
-        if (this.ticker.length >= 2 && coin.CoinInfo.Name.indexOf(this.ticker.toUpperCase()) != -1) {
-          this.matchedCoins.push(coin);
-        }
-      }
-    },
-    selectCoin(coin) {
-      this.ticker = coin;
-      this.matchedCoins = [];
     }
   },
+
   created() {
     const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
     if (windowData.filter) {
@@ -283,14 +199,151 @@ export default {
       });
     }
   },
+
+  computed: {
+    startIndex() {
+      return (this.page - 1) * 6;
+    },
+
+    endIndex() {
+      return this.page * 6;
+    },
+
+    filteredTickers() {
+      return this.tickers.filter(ticker => ticker.name.includes(this.filter.toUpperCase()));
+    
+    },
+
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex;
+    },
+
+    normalizedGraph() {
+      const maxValue = Math.max(...this.graph);
+      const minValue = Math.min(...this.graph);
+
+      if (maxValue === minValue) {
+        return this.graph.map(() => 50);
+      }
+
+      return this.graph.map(
+        price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
+      );
+    },
+
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      }
+    },
+  },
+
   watch: {
     filter() {
       this.page = 1;
-      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
     },
-    page() {
-      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
+
+    pageStateOptions(value) {
+      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${value.filter}&page=${value.page}`)
+    },
+
+    paginatedTickers() {
+      if (this.paginatedTickers.length === 0 & this.page > 1) {
+        this.page--;
+      }
+    },
+
+    selectedTicker() {
+      this.graph = [];
+    },
+
+    tickers() {
+      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
+    },
+  },
+
+  methods: {
+    subscribeToUpdates(tickerName) {
+      const id = setInterval(async () => {
+        if(!this.tickers.length) clearInterval(id);
+
+        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=96bed6b9e19a23c47d45771f24014e20cb37e43a9799997812a9db2bcbf1503c`);
+        const data = await f.json();
+        this.tickers.find(t => t.name === tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toFixed(2);
+      
+        if (this.selectedTicker?.name === tickerName) {
+          this.graph.push(data.USD);
+        }
+      }, 3000);
+    },
+
+    add(coin) {
+      const currentTicker = coin;
+
+      if (this.checkForMatches(currentTicker)) return false;
+
+      this.filter = '';
+      let flag = false;
+
+      for (let c of this.coinList) {
+        if (c.CoinInfo.Name === coin.name) {
+          flag = true;
+        }
+      }
+
+      if (!flag) return false;
+
+      this.ticker = coin.name;
+      this.tickers = [...this.tickers, currentTicker];
+
+      this.subscribeToUpdates(currentTicker.name);
+
+      this.ticker = '';
+      this.matchedCoins = [];
+    },
+
+    checkForMatches(coin) {
+      for (let t of this.tickers) {
+        this.matchedCoins = [];
+        if (t.name === coin.name) return true;
+      }
+      return false;
+    },
+
+    handleDelete(tickerToRemove) {
+      this.tickers = this.tickers.filter(ticker => ticker !== tickerToRemove);
+
+      if (this.selectedTicker === tickerToRemove) {
+        this.selectedTicker = null;
+      }
+    },
+
+    select(ticker) {
+      this.selectedTicker = ticker;
+    },
+
+    matchCoin() {
+      //НЕ РАбОТАЕТ
+      this.matchedCoins = [];
+
+      for (let coin of this.coinList) {
+        if (this.matchedCoins.length >= 4) break;
+        
+        if (this.ticker.length >= 2 && coin.CoinInfo.Name.indexOf(this.ticker.toUpperCase()) != -1) {
+          this.matchedCoins.push(coin);
+        }
+      }
+    },
+
+    selectCoin(coin) {
+      this.ticker = coin;
+      this.matchedCoins = [];
     }
-  } 
+  }
 }
 </script>
